@@ -1,5 +1,7 @@
 package slime;
 
+import java.util.Arrays;
+
 /**
  * The chemical trail that agents leave behind and follow.
  *
@@ -46,6 +48,11 @@ public class TrailMap {
     /** Trail strength of one cell, used for drawing. */
     public double get(int x, int y) {
         return cells[y * width + x];
+    }
+
+    /** Removes all trail. */
+    public void clear() {
+        Arrays.fill(cells, 0.0);
     }
 
     /**
