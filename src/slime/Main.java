@@ -2,6 +2,8 @@ package slime;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
@@ -25,18 +27,8 @@ public class Main {
                 Settings.WIDTH, Settings.HEIGHT, Settings.AGENT_COUNT, Settings.SEED);
         SimulationPanel panel = new SimulationPanel(simulation, Settings.SCALE);
 
-        JFrame frame = new JFrame("Slime Mould Networks");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.add(panel);
-        frame.pack();
-        frame.setResizable(false);
-        frame.setLocationRelativeTo(null);   // centre on screen
-        frame.setVisible(true);
-
         // The Swing Timer also fires on the Event Dispatch Thread, so step()
         // and painting take turns and never run at the same time.
-        // Both listeners in this file are anonymous inner classes (Week 4);
-        // Phase 2 rewrites them as lambdas (Week 9).
         Timer timer = new Timer(Settings.FRAME_DELAY_MS, new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent event) {
@@ -44,6 +36,49 @@ public class Main {
                 panel.repaint();
             }
         });
+
+        // Keyboard controls. A number key swaps the strategy while the
+        // simulation runs; the agents themselves do not change.
+        panel.setFocusable(true);
+        panel.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyTyped(KeyEvent event) {
+                switch (Character.toLowerCase(event.getKeyChar())) {
+                    case '1':
+                        simulation.setSteeringRule(new FollowTrail());
+                        break;
+                    case '2':
+                        simulation.setSteeringRule(new AvoidTrail());
+                        break;
+                    case '3':
+                        simulation.setSteeringRule(new Wander());
+                        break;
+                    case 'r':
+                        simulation.scatter();
+                        break;
+                    case ' ':
+                        if (timer.isRunning()) {
+                            timer.stop();
+                        } else {
+                            timer.start();
+                        }
+                        break;
+                    default:
+                        return;   // any other key: nothing changed, nothing to redraw
+                }
+                panel.repaint();   // show the change at once, even while paused
+            }
+        });
+
+        JFrame frame = new JFrame("Slime Mould Networks");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.add(panel);
+        frame.pack();
+        frame.setResizable(false);
+        frame.setLocationRelativeTo(null);   // centre on screen
+        frame.setVisible(true);
+        panel.requestFocusInWindow();        // so key presses reach the panel
+
         timer.start();
     }
 }
