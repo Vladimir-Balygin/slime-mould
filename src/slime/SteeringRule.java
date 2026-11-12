@@ -8,7 +8,13 @@ import java.util.Random;
  * SlimeAgent is the context. It does the sensing, then hands the decision
  * to whichever rule it currently holds, so a new behaviour can be added
  * without changing SlimeAgent (open for extension, closed for modification).
+ *
+ * The interface has exactly one abstract method, which makes it a
+ * functional interface: any lambda with the same parameters and return
+ * type can be used wherever a SteeringRule is expected. The annotation
+ * asks the compiler to check that this stays true.
  */
+@FunctionalInterface
 public interface SteeringRule {
 
     /**

@@ -1,7 +1,5 @@
 package slime;
 
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import javax.swing.JFrame;
@@ -14,12 +12,9 @@ public class Main {
     public static void main(String[] args) {
         // Swing is not thread-safe: all window work must happen on Swing's
         // own thread, the Event Dispatch Thread. invokeLater queues it there.
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                createAndShowWindow();
-            }
-        });
+        // Main::createAndShowWindow is a method reference: a lambda that
+        // only calls an existing method.
+        SwingUtilities.invokeLater(Main::createAndShowWindow);
     }
 
     private static void createAndShowWindow() {
@@ -29,29 +24,31 @@ public class Main {
 
         // The Swing Timer also fires on the Event Dispatch Thread, so step()
         // and painting take turns and never run at the same time.
-        Timer timer = new Timer(Settings.FRAME_DELAY_MS, new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent event) {
-                simulation.step();
-                panel.repaint();
-            }
+        // ActionListener has one abstract method, so a lambda can be one.
+        Timer timer = new Timer(Settings.FRAME_DELAY_MS, event -> {
+            simulation.step();
+            panel.repaint();
         });
 
         // Keyboard controls. A number key swaps the strategy while the
         // simulation runs; the agents themselves do not change.
+        // KeyListener has three abstract methods (keyTyped, keyPressed,
+        // keyReleased), so it is not a functional interface and cannot be
+        // a lambda. KeyAdapter is a class with empty versions of all three,
+        // so an anonymous inner class overrides only the one it needs.
         panel.setFocusable(true);
         panel.addKeyListener(new KeyAdapter() {
             @Override
             public void keyTyped(KeyEvent event) {
                 switch (Character.toLowerCase(event.getKeyChar())) {
                     case '1':
-                        simulation.setSteeringRule(new FollowTrail());
+                        simulation.setSteeringRule("follow trail", SteeringRules.FOLLOW);
                         break;
                     case '2':
-                        simulation.setSteeringRule(new AvoidTrail());
+                        simulation.setSteeringRule("avoid trail", SteeringRules.AVOID);
                         break;
                     case '3':
-                        simulation.setSteeringRule(new Wander());
+                        simulation.setSteeringRule("wander", SteeringRules.WANDER);
                         break;
                     case 'r':
                         simulation.scatter();

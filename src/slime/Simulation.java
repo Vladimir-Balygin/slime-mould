@@ -15,7 +15,8 @@ public class Simulation {
     private final TrailMap trail;
     private final List<SlimeAgent> agents = new ArrayList<>();
     private final Random random;   // places and scatters the agents
-    private SteeringRule rule = new FollowTrail();
+    private SteeringRule rule = SteeringRules.FOLLOW;
+    private String ruleName = "follow trail";
     private int tick = 0;
 
     public Simulation(int width, int height, int agentCount, long seed) {
@@ -47,19 +48,25 @@ public class Simulation {
     /**
      * Gives every agent the same new strategy. Rules hold no state of their
      * own, so one rule object can safely be shared by all 15,000 agents.
+     *
+     * The name travels with the rule because a lambda has no toString()
+     * of its own to describe itself.
      */
-    public void setSteeringRule(SteeringRule rule) {
+    public void setSteeringRule(String name, SteeringRule rule) {
         if (rule == null) {
             throw new IllegalArgumentException("Steering rule cannot be null");
         }
         this.rule = rule;
-        for (SlimeAgent agent : agents) {
-            agent.setSteeringRule(rule);
-        }
+        this.ruleName = name;
+        agents.forEach(agent -> agent.setSteeringRule(rule));
     }
 
     public SteeringRule getSteeringRule() {
         return rule;
+    }
+
+    public String getSteeringRuleName() {
+        return ruleName;
     }
 
     /** Clears the trail and scatters every agent, so the network has to form again from noise. */

@@ -49,11 +49,9 @@ public class SimulationPanel extends JPanel {
                 RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g2.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
         g2.setColor(new Color(255, 255, 255, 190));
-        // String concatenation calls the rule's toString(), so each
-        // concrete strategy class supplies its own name.
         g2.drawString("tick " + simulation.getTick()
                 + "   agents " + simulation.getAgents().size()
-                + "   rule " + simulation.getSteeringRule(), 10, 20);
+                + "   rule " + simulation.getSteeringRuleName(), 10, 20);
         g2.drawString("1 follow   2 avoid   3 wander   R scatter   Space pause",
                 10, getHeight() - 12);
     }
