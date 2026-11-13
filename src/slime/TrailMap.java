@@ -46,6 +46,21 @@ public class TrailMap {
         cells[indexOf(x, y)] += amount;
     }
 
+    /**
+     * Adds trail for a whole grid of agents at once: agentsPerCell[i]
+     * agents each add amountEach to cell i. An overload of deposit: same
+     * name, different parameters.
+     */
+    public void deposit(int[] agentsPerCell, double amountEach) {
+        if (agentsPerCell.length != cells.length) {
+            throw new IllegalArgumentException("Expected " + cells.length
+                    + " cells, got " + agentsPerCell.length);
+        }
+        for (int i = 0; i < cells.length; i++) {
+            cells[i] += agentsPerCell[i] * amountEach;
+        }
+    }
+
     /** Trail strength of one cell, used for drawing. */
     public double get(int x, int y) {
         return cells[y * width + x];
@@ -101,8 +116,11 @@ public class TrailMap {
         }
     }
 
-    // Converts any real coordinate into an array index, wrapping at the edges.
-    private int indexOf(double x, double y) {
+    /**
+     * The array index of the cell that contains a point, wrapping at the
+     * edges. Public so the DepositCollector can count agents per cell.
+     */
+    public int indexOf(double x, double y) {
         int cellX = Math.floorMod((int) Math.floor(x), width);
         int cellY = Math.floorMod((int) Math.floor(y), height);
         return cellY * width + cellX;
