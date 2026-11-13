@@ -20,15 +20,21 @@ public class Main {
     private static void createAndShowWindow() {
         Simulation simulation = new Simulation(
                 Settings.WIDTH, Settings.HEIGHT, Settings.AGENT_COUNT, Settings.SEED);
-        SimulationPanel panel = new SimulationPanel(simulation, Settings.SCALE);
+        NetworkChart chart = new NetworkChart(simulation, Settings.CHART_LENGTH);
+        SimulationPanel panel = new SimulationPanel(simulation, chart, Settings.SCALE);
 
-        // The Swing Timer also fires on the Event Dispatch Thread, so step()
-        // and painting take turns and never run at the same time.
-        // ActionListener has one abstract method, so a lambda can be one.
-        Timer timer = new Timer(Settings.FRAME_DELAY_MS, event -> {
-            simulation.step();
-            panel.repaint();
-        });
+        // Observer: the simulation calls these back after every change. It
+        // only knows them as Observers, not as a chart, a panel or a printer.
+        simulation.registerObserver(chart);
+        simulation.registerObserver(panel);
+        simulation.registerObserver(new ConsoleReporter(simulation, Settings.REPORT_INTERVAL));
+
+        // The Swing Timer fires on the Event Dispatch Thread, so step() and
+        // painting take turns and never run at the same time. The Timer is
+        // itself a subject: it notifies its ActionListener every 33 ms.
+        // It only advances the simulation; the panel repaints because it
+        // is an observer, not because the Timer tells it to.
+        Timer timer = new Timer(Settings.FRAME_DELAY_MS, event -> simulation.step());
 
         // Keyboard controls. A number key swaps the strategy while the
         // simulation runs; the agents themselves do not change.
@@ -61,9 +67,8 @@ public class Main {
                         }
                         break;
                     default:
-                        return;   // any other key: nothing changed, nothing to redraw
+                        break;   // any other key does nothing
                 }
-                panel.repaint();   // show the change at once, even while paused
             }
         });
 
