@@ -1,6 +1,7 @@
 package slime;
 
 import java.util.Arrays;
+import java.util.stream.DoubleStream;
 
 /**
  * The chemical trail that agents leave behind and follow.
@@ -53,6 +54,19 @@ public class TrailMap {
     /** Removes all trail. */
     public void clear() {
         Arrays.fill(cells, 0.0);
+    }
+
+    public int getCellCount() {
+        return cells.length;
+    }
+
+    /**
+     * Every cell's trail strength, as a stream. Callers can read and
+     * summarise the values but cannot change them, which handing out the
+     * array itself would allow.
+     */
+    public DoubleStream values() {
+        return Arrays.stream(cells);
     }
 
     /**
