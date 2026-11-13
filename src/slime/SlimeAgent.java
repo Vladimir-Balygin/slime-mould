@@ -3,9 +3,12 @@ package slime;
 import java.util.Random;
 
 /**
- * One slime mould agent. Every tick it senses the trail ahead, turns
- * toward the strongest smell, steps forward and leaves trail behind.
- * Networks emerge from thousands of agents doing only this.
+ * One slime mould agent. Every tick it senses the trail ahead, asks its
+ * steering rule which way to turn, steps forward and leaves trail behind.
+ *
+ * In the Strategy pattern this class is the context: it has-a SteeringRule
+ * and delegates the turning decision to it, so the same agent can follow,
+ * avoid or ignore the trail depending on which rule it is given.
  */
 public class SlimeAgent {
 
@@ -13,12 +16,14 @@ public class SlimeAgent {
     private double y;
     private double heading;        // direction of travel, in radians
     private final Random random;   // each agent owns one, so no agent shares it
+    private SteeringRule rule;     // the strategy this agent currently uses
 
-    public SlimeAgent(double x, double y, double heading, Random random) {
+    public SlimeAgent(double x, double y, double heading, Random random, SteeringRule rule) {
         this.x = x;
         this.y = y;
         this.heading = heading;
         this.random = random;
+        this.rule = requireRule(rule);
     }
 
     public double getX() {
@@ -33,6 +38,26 @@ public class SlimeAgent {
         return heading;
     }
 
+    /** Swaps the strategy at run time; the agent's next turn uses the new rule. */
+    public void setSteeringRule(SteeringRule rule) {
+        this.rule = requireRule(rule);
+    }
+
+    // A null rule is a programming error, so it gets an unchecked exception.
+    private static SteeringRule requireRule(SteeringRule rule) {
+        if (rule == null) {
+            throw new IllegalArgumentException("Steering rule cannot be null");
+        }
+        return rule;
+    }
+
+    /** Moves the agent to a new place, used when the simulation scatters its agents. */
+    public void placeAt(double x, double y, double heading) {
+        this.x = x;
+        this.y = y;
+        this.heading = heading;
+    }
+
     /** One tick of behaviour: sense and turn, move, deposit. */
     public void update(TrailMap trail) {
         senseAndTurn(trail);
@@ -45,20 +70,8 @@ public class SlimeAgent {
         double front = senseAt(trail, heading);
         double right = senseAt(trail, heading + Settings.SENSOR_ANGLE);
 
-        // The "follow" rule, written directly into the agent for now.
-        // Phase 2 moves this decision out into a separate strategy.
-        if (front > left && front > right) {
-            return;   // strongest straight ahead: keep going
-        }
-        if (front < left && front < right) {
-            // weakest straight ahead: turn to either side at random
-            heading += random.nextBoolean() ? Settings.TURN_ANGLE : -Settings.TURN_ANGLE;
-        } else if (left > right) {
-            heading -= Settings.TURN_ANGLE;
-        } else if (right > left) {
-            heading += Settings.TURN_ANGLE;
-        }
-        // otherwise all readings are equal: keep going
+        // The context does the sensing; the strategy makes the decision.
+        heading += rule.turn(left, front, right, random);
     }
 
     // Reads the trail at one sensor. Without the limit, agents always

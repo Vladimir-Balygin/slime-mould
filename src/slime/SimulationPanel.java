@@ -50,6 +50,9 @@ public class SimulationPanel extends JPanel {
         g2.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
         g2.setColor(new Color(255, 255, 255, 190));
         g2.drawString("tick " + simulation.getTick()
-                + "   agents " + simulation.getAgents().size(), 10, 20);
+                + "   agents " + simulation.getAgents().size()
+                + "   rule " + simulation.getSteeringRuleName(), 10, 20);
+        g2.drawString("1 follow   2 avoid   3 wander   R scatter   Space pause",
+                10, getHeight() - 12);
     }
 }

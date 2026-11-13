@@ -14,6 +14,9 @@ public class Simulation {
 
     private final TrailMap trail;
     private final List<SlimeAgent> agents = new ArrayList<>();
+    private final Random random;   // places and scatters the agents
+    private SteeringRule rule = SteeringRules.FOLLOW;
+    private String ruleName = "follow trail";
     private int tick = 0;
 
     public Simulation(int width, int height, int agentCount, long seed) {
@@ -24,12 +27,12 @@ public class Simulation {
 
         // One seeded generator places every agent, so the same seed
         // always produces the same run.
-        Random random = new Random(seed);
+        this.random = new Random(seed);
         for (int i = 0; i < agentCount; i++) {
             double x = random.nextDouble() * width;
             double y = random.nextDouble() * height;
             double heading = random.nextDouble() * 2 * Math.PI;
-            agents.add(new SlimeAgent(x, y, heading, new Random(random.nextLong())));
+            agents.add(new SlimeAgent(x, y, heading, new Random(random.nextLong()), rule));
         }
     }
 
@@ -40,6 +43,41 @@ public class Simulation {
         }
         trail.diffuseAndDecay(Settings.DECAY_RATE);
         tick++;
+    }
+
+    /**
+     * Gives every agent the same new strategy. Rules hold no state of their
+     * own, so one rule object can safely be shared by all 15,000 agents.
+     *
+     * The name travels with the rule because a lambda has no toString()
+     * of its own to describe itself.
+     */
+    public void setSteeringRule(String name, SteeringRule rule) {
+        if (rule == null) {
+            throw new IllegalArgumentException("Steering rule cannot be null");
+        }
+        this.rule = rule;
+        this.ruleName = name;
+        agents.forEach(agent -> agent.setSteeringRule(rule));
+    }
+
+    public SteeringRule getSteeringRule() {
+        return rule;
+    }
+
+    public String getSteeringRuleName() {
+        return ruleName;
+    }
+
+    /** Clears the trail and scatters every agent, so the network has to form again from noise. */
+    public void scatter() {
+        trail.clear();
+        for (SlimeAgent agent : agents) {
+            double x = random.nextDouble() * trail.getWidth();
+            double y = random.nextDouble() * trail.getHeight();
+            double heading = random.nextDouble() * 2 * Math.PI;
+            agent.placeAt(x, y, heading);
+        }
     }
 
     public TrailMap getTrail() {
