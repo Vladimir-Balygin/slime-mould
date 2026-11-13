@@ -3,9 +3,12 @@ package slime;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.util.Arrays;
 import javax.swing.JPanel;
 
 /**
@@ -19,11 +22,16 @@ public class SimulationPanel extends JPanel implements Observer {
 
     private static final int CHART_WIDTH = 230;
     private static final int CHART_HEIGHT = 80;
+    private static final int LINE_HEIGHT = 18;
+    private static final Color TEXT = new Color(255, 255, 255, 200);
+    private static final Color WARNING = new Color(255, 90, 90);
+    private static final Color BOX = new Color(0, 0, 0, 160);
 
     private final Simulation simulation;   // the subject this observer pulls its data from
     private final NetworkChart chart;
     private final TrailRenderer renderer;
     private final int scale;
+    private double renderMillis = 0;       // how long rendering takes, smoothed
 
     public SimulationPanel(Simulation simulation, NetworkChart chart, int scale) {
         this.simulation = simulation;
@@ -55,30 +63,62 @@ public class SimulationPanel extends JPanel implements Observer {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
 
+        // The picture is rendered sequentially or in parallel, like the simulation.
+        TrailMap trail = simulation.getTrail();
+        long start = System.nanoTime();
+        BufferedImage frame = renderer.render(trail, simulation.getExecutionMode().isParallel());
+        recordRenderTime(System.nanoTime() - start);
+
         // Smooth scaling, so each cell blends into its neighbours instead of showing as a block
         g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
                 RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        TrailMap trail = simulation.getTrail();
-        g2.drawImage(renderer.render(trail), 0, 0,
-                trail.getWidth() * scale, trail.getHeight() * scale, null);
+        g2.drawImage(frame, 0, 0, trail.getWidth() * scale, trail.getHeight() * scale, null);
 
         drawInfo(g2);
         chart.draw(g2, getWidth() - CHART_WIDTH - 10, getHeight() - CHART_HEIGHT - 10,
                 CHART_WIDTH, CHART_HEIGHT);
     }
 
+    // Smoothed like the step time, so the number does not flicker.
+    private void recordRenderTime(long nanos) {
+        double millis = nanos / 1_000_000.0;
+        renderMillis = (renderMillis == 0) ? millis : renderMillis + (millis - renderMillis) / 10;
+    }
+
     private void drawInfo(Graphics2D g2) {
         SimulationStats stats = simulation.getStats();
+        StepTimes times = stats.getStepTimes();
+        String[] lines = {
+                "tick " + stats.getTick() + "   agents " + stats.getAgentCount()
+                        + "   rule " + stats.getRuleName(),
+                String.format("network %.1f%% of map   %.0f%% of agents on it",
+                        stats.getNetworkFraction() * 100, stats.getAgentsOnNetworkFraction() * 100),
+                String.format("%s   move %.2f  deposit %.2f  spread %.2f  render %.2f ms",
+                        stats.getMode().getLabel(), times.getMoveMillis(), times.getDepositMillis(),
+                        times.getSpreadMillis(), renderMillis),
+                "lost deposits " + stats.getLostDeposits()
+        };
+        String help = "1 follow  2 avoid  3 wander  R scatter  P parallel  Space pause";
+
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                 RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g2.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
-        g2.setColor(new Color(255, 255, 255, 200));
-        g2.drawString("tick " + stats.getTick()
-                + "   agents " + stats.getAgentCount()
-                + "   rule " + stats.getRuleName(), 10, 20);
-        g2.drawString(String.format("network %.1f%% of map   %.0f%% of agents on it",
-                stats.getNetworkFraction() * 100, stats.getAgentsOnNetworkFraction() * 100), 10, 38);
-        g2.drawString("1 follow   2 avoid   3 wander   R scatter   Space pause",
-                10, getHeight() - 12);
+        FontMetrics metrics = g2.getFontMetrics();
+
+        // Dark boxes behind the text, like the chart's, keep it readable over bright trail.
+        int infoWidth = Arrays.stream(lines).mapToInt(metrics::stringWidth).max().orElse(0);
+        g2.setColor(BOX);
+        g2.fillRect(4, 5, infoWidth + 12, lines.length * LINE_HEIGHT + 6);
+        g2.fillRect(4, getHeight() - 26, metrics.stringWidth(help) + 12, 20);
+
+        for (int i = 0; i < lines.length; i++) {
+            g2.setColor(TEXT);
+            if (i == lines.length - 1 && stats.getLostDeposits() > 0) {
+                g2.setColor(WARNING);   // deposits can only be lost in the unsafe mode
+            }
+            g2.drawString(lines[i], 10, 20 + i * LINE_HEIGHT);
+        }
+        g2.setColor(TEXT);
+        g2.drawString(help, 10, getHeight() - 12);
     }
 }

@@ -1,6 +1,7 @@
 package slime;
 
 import java.awt.image.BufferedImage;
+import java.util.stream.DoubleStream;
 
 /**
  * Turns trail strength into colour: near-black where there is no trail,
@@ -17,32 +18,38 @@ public class TrailRenderer {
     private static final double HALF_BRIGHTNESS = 20.0;
 
     private final BufferedImage image;
-    private final int[] pixels;
 
     public TrailRenderer(int width, int height) {
         this.image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        this.pixels = new int[width * height];
     }
 
-    /** Paints the whole trail map into the image and returns it. */
-    public BufferedImage render(TrailMap trail) {
+    /**
+     * Paints the whole trail map into the image and returns it.
+     *
+     * A pipeline: every cell's trail value flows in, is mapped to a colour,
+     * and the colours are collected into an array of pixels. Each pixel
+     * depends only on its own cell, and colourOf changes nothing outside
+     * itself, so in parallel the cells can be coloured on many threads at
+     * once. toArray() puts the pixels back in their original order when
+     * the chunks are joined.
+     */
+    public BufferedImage render(TrailMap trail, boolean parallel) {
         int width = image.getWidth();
         int height = image.getHeight();
         if (trail.getWidth() != width || trail.getHeight() != height) {
             throw new IllegalArgumentException("Trail map size does not match the renderer");
         }
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                double value = trail.get(x, y);
-                double brightness = value / (value + HALF_BRIGHTNESS);   // always between 0 and 1
-                pixels[y * width + x] = colourFor(brightness);
-            }
-        }
+        DoubleStream values = parallel ? trail.values().parallel() : trail.values();
+        int[] pixels = values.mapToInt(TrailRenderer::colourOf).toArray();
+
+        // Writing into the image happens once, on the calling thread.
         image.setRGB(0, 0, width, height, pixels, 0, width);
         return image;
     }
 
-    private static int colourFor(double brightness) {
+    // Trail strength to colour. Same value in, same colour out, nothing else changed.
+    private static int colourOf(double value) {
+        double brightness = value / (value + HALF_BRIGHTNESS);   // always between 0 and 1
         if (brightness < 0.5) {
             return blend(BACKGROUND, AMBER, brightness * 2);
         }
