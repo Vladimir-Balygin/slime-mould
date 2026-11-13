@@ -4,7 +4,8 @@ import java.util.Random;
 
 /**
  * One slime mould agent. Every tick it senses the trail ahead, asks its
- * steering rule which way to turn, steps forward and leaves trail behind.
+ * steering rule which way to turn and steps forward. The simulation then
+ * adds its trail where it stands, in a separate stage.
  *
  * In the Strategy pattern this class is the context: it has-a SteeringRule
  * and delegates the turning decision to it, so the same agent can follow,
@@ -15,7 +16,7 @@ public class SlimeAgent {
     private double x;
     private double y;
     private double heading;        // direction of travel, in radians
-    private final Random random;   // each agent owns one, so no agent shares it
+    private final Random random;   // each agent owns one, so no two agents (or threads) share it
     private SteeringRule rule;     // the strategy this agent currently uses
 
     public SlimeAgent(double x, double y, double heading, Random random, SteeringRule rule) {
@@ -58,11 +59,15 @@ public class SlimeAgent {
         this.heading = heading;
     }
 
-    /** One tick of behaviour: sense and turn, move, deposit. */
-    public void update(TrailMap trail) {
+    /**
+     * This agent's part of a tick: sense and turn, then move. It reads the
+     * trail but never changes it, and it changes nothing except this
+     * agent's own fields. So thousands of agents can do this at the same
+     * time on different threads without getting in each other's way.
+     */
+    public void senseAndMove(TrailMap trail) {
         senseAndTurn(trail);
         move(trail.getWidth(), trail.getHeight());
-        trail.deposit(x, y, Settings.DEPOSIT_AMOUNT);
     }
 
     private void senseAndTurn(TrailMap trail) {

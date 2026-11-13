@@ -45,14 +45,32 @@ public class Simulation implements Subject {
         this.stats = measure();
     }
 
-    /** One tick: every agent acts, then the whole trail spreads and fades. */
+    /**
+     * One tick, in three stages. Each stage finishes before the next starts:
+     *   1. move:    every agent senses, turns and moves (the trail is only read)
+     *   2. deposit: every agent adds trail where it now stands
+     *   3. spread:  the whole trail blurs and fades
+     *
+     * Before, each agent deposited straight after it moved, so agents later
+     * in the list could sense trail that earlier agents had just laid. Now
+     * every agent senses the same trail, so the order the agents are
+     * processed in no longer changes the result.
+     */
     public void step() {
         for (SlimeAgent agent : agents) {
-            agent.update(trail);
+            agent.senseAndMove(trail);
         }
+        depositTrail();
         trail.diffuseAndDecay(Settings.DECAY_RATE);
         tick++;
         changed();
+    }
+
+    // Counts how many agents stand on each cell with a custom collector,
+    // then adds all their trail to the map in one pass.
+    private void depositTrail() {
+        int[] agentsPerCell = agents.stream().collect(new DepositCollector(trail));
+        trail.deposit(agentsPerCell, Settings.DEPOSIT_AMOUNT);
     }
 
     /**
