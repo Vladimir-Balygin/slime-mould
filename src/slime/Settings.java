@@ -29,6 +29,11 @@ public final class Settings {
     // Fraction of the trail that fades away each tick
     public static final double DECAY_RATE = 0.1;
 
+    // Statistics: a cell with more trail than this counts as part of the network
+    public static final double NETWORK_THRESHOLD = 10.0;
+    public static final int CHART_LENGTH = 300;       // ticks of history in the chart
+    public static final int REPORT_INTERVAL = 100;    // ticks between console reports
+
     // Display
     public static final int SCALE = 2;              // each cell is drawn as 2x2 pixels
     public static final int FRAME_DELAY_MS = 33;    // about 30 frames per second
