@@ -47,9 +47,13 @@ public final class Benchmark {
     }
 
     public static void main(String[] args) {
-        System.out.printf("%d processor cores; parallel streams use the calling thread plus"
-                        + " the fork/join common pool's %d worker thread(s)%n",
-                Runtime.getRuntime().availableProcessors(), ForkJoinPool.commonPool().getParallelism());
+        // availableProcessors() counts logical processors, not physical cores.
+        // With Hyper-Threading, each physical core runs two hardware threads and
+        // is counted twice, but those two threads share the one core's circuits.
+        System.out.printf("Java sees %d logical processors (with Hyper-Threading, each physical core counts as two)%n",
+                Runtime.getRuntime().availableProcessors());
+        System.out.printf("Parallel streams use the calling thread plus the fork/join common pool's %d worker thread(s)%n",
+                ForkJoinPool.commonPool().getParallelism());
         System.out.printf("%,d agents on a %d x %d map; %d runs of %d steps per mode after %d warm-up steps%n%n",
                 Settings.AGENT_COUNT, Settings.WIDTH, Settings.HEIGHT, RUNS, STEPS_PER_RUN, WARM_UP_STEPS);
 
@@ -104,6 +108,8 @@ public final class Benchmark {
                     render, (double) lost / (RUNS * STEPS_PER_RUN));
         });
         System.out.printf("%nstep:      a whole step, including the statistics and the lost-deposit check%n"
+                + "speed-up:  how many times faster a step is than sequential. Expect less than the number of%n"
+                + "           processors: splitting and joining take time, and two hyper-threads share one core%n"
                 + "move, deposit, spread: the three stages of a step on their own, in ms%n"
                 + "render:    turning the trail into one frame's pixels, in ms%n"
                 + "lost/step: deposits that threads overwrote, out of %,d per step%n", Settings.AGENT_COUNT);
