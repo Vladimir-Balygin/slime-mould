@@ -42,8 +42,10 @@ public class TrailRenderer {
         DoubleStream values = parallel ? trail.values().parallel() : trail.values();
         int[] pixels = values.mapToInt(TrailRenderer::colourOf).toArray();
 
-        // Writing into the image happens once, on the calling thread.
-        image.setRGB(0, 0, width, height, pixels, 0, width);
+        // Copies all the pixels into the image in one block, on the calling
+        // thread. The Benchmark showed that image.setRGB, which converts the
+        // pixels one at a time, took longer than working out every colour.
+        image.getRaster().setDataElements(0, 0, width, height, pixels);
         return image;
     }
 
