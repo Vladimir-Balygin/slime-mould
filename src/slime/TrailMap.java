@@ -2,6 +2,7 @@ package slime;
 
 import java.util.Arrays;
 import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
 
 /**
  * The chemical trail that agents leave behind and follow.
@@ -46,7 +47,22 @@ public class TrailMap {
         cells[indexOf(x, y)] += amount;
     }
 
-    /** Trail strength of one cell, used for drawing. */
+    /**
+     * Adds trail for a whole grid of agents at once: agentsPerCell[i]
+     * agents each add amountEach to cell i. An overload of deposit: same
+     * name, different parameters.
+     */
+    public void deposit(int[] agentsPerCell, double amountEach) {
+        if (agentsPerCell.length != cells.length) {
+            throw new IllegalArgumentException("Expected " + cells.length
+                    + " cells, got " + agentsPerCell.length);
+        }
+        for (int i = 0; i < cells.length; i++) {
+            cells[i] += agentsPerCell[i] * amountEach;
+        }
+    }
+
+    /** Trail strength of one cell. */
     public double get(int x, int y) {
         return cells[y * width + x];
     }
@@ -58,6 +74,19 @@ public class TrailMap {
 
     public int getCellCount() {
         return cells.length;
+    }
+
+    /**
+     * The total amount of trail on the whole map. A plain loop rather than
+     * values().sum(): the simulation calls this twice every step, and
+     * measuring showed the stream version took several times longer.
+     */
+    public double total() {
+        double total = 0;
+        for (double value : cells) {
+            total += value;
+        }
+        return total;
     }
 
     /**
@@ -76,12 +105,20 @@ public class TrailMap {
      * New values are written into a separate buffer. If we wrote back
      * into cells while still reading from it, a cell would average a
      * mix of old neighbours and neighbours that were already updated.
+     *
+     * When parallel is true, the rows are shared out between threads.
+     * That is safe because each row task only reads from cells, which
+     * nothing changes during this stage, and only writes its own row of
+     * the buffer, so no two tasks ever write the same element. The swap
+     * happens after forEach returns, when every row task has finished.
      */
-    public void diffuseAndDecay(double decayRate) {
-        double keep = 1.0 - decayRate;
-        for (int y = 0; y < height; y++) {
-            blurRow(y, keep);
+    public void diffuseAndDecay(double decayRate, boolean parallel) {
+        double keep = 1.0 - decayRate;   // effectively final, so the lambda can use it
+        IntStream rows = IntStream.range(0, height);
+        if (parallel) {
+            rows = rows.parallel();
         }
+        rows.forEach(y -> blurRow(y, keep));
         double[] old = cells;   // swap: the buffer becomes the live map
         cells = buffer;
         buffer = old;
@@ -101,8 +138,11 @@ public class TrailMap {
         }
     }
 
-    // Converts any real coordinate into an array index, wrapping at the edges.
-    private int indexOf(double x, double y) {
+    /**
+     * The array index of the cell that contains a point, wrapping at the
+     * edges. Public so the DepositCollector can count agents per cell.
+     */
+    public int indexOf(double x, double y) {
         int cellX = Math.floorMod((int) Math.floor(x), width);
         int cellY = Math.floorMod((int) Math.floor(y), height);
         return cellY * width + cellX;

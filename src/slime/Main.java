@@ -34,6 +34,12 @@ public class Main {
         // itself a subject: it notifies its ActionListener every 33 ms.
         // It only advances the simulation; the panel repaints because it
         // is an observer, not because the Timer tells it to.
+        //
+        // Threading versus parallelisation: the Event Dispatch Thread keeps
+        // the window responsive by taking turns between key presses, ticks
+        // and painting. Inside step(), parallel streams split one tick's
+        // work across the cores. step() returns only when every parallel
+        // task has finished, so painting never sees a half-finished tick.
         Timer timer = new Timer(Settings.FRAME_DELAY_MS, event -> simulation.step());
 
         // Keyboard controls. A number key swaps the strategy while the
@@ -58,6 +64,9 @@ public class Main {
                         break;
                     case 'r':
                         simulation.scatter();
+                        break;
+                    case 'p':   // sequential -> parallel -> parallel, unsafe deposit -> ...
+                        simulation.setExecutionMode(simulation.getExecutionMode().next());
                         break;
                     case ' ':
                         if (timer.isRunning()) {
