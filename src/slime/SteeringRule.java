@@ -41,4 +41,25 @@ public interface SteeringRule {
     default String describe(String name) {
         return name;
     }
+
+    // A fluent interface for decorating. Each method returns this rule
+    // wrapped in one more decorator, and the result is again a SteeringRule,
+    // so the calls chain like a stream pipeline and read left to right:
+    //     FOLLOW.withDrift(a).withJitter(b)
+    // instead of the inside-out new Jitter(new Drift(FOLLOW, a), b).
+
+    /** This rule with a random wobble of up to maxAngle either way on every turn. */
+    default SteeringRule withJitter(double maxAngle) {
+        return new Jitter(this, maxAngle);
+    }
+
+    /** This rule with the same extra turn to the right on every step. */
+    default SteeringRule withDrift(double angle) {
+        return new Drift(this, angle);
+    }
+
+    /** This rule, except that a share (chance) of steps go straight without asking it. */
+    default SteeringRule withMomentum(double chance) {
+        return new Momentum(this, chance);
+    }
 }
