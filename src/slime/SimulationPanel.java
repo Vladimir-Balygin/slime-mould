@@ -23,6 +23,7 @@ public class SimulationPanel extends JPanel implements Observer {
     private static final int CHART_WIDTH = 230;
     private static final int CHART_HEIGHT = 80;
     private static final int LINE_HEIGHT = 18;
+    private static final int NO_WARNING = -1;   // no line of a text box is drawn in red
     private static final Color TEXT = new Color(255, 255, 255, 200);
     private static final Color WARNING = new Color(255, 90, 90);
     private static final Color BOX = new Color(0, 0, 0, 160);
@@ -88,7 +89,7 @@ public class SimulationPanel extends JPanel implements Observer {
     private void drawInfo(Graphics2D g2) {
         SimulationStats stats = simulation.getStats();
         StepTimes times = stats.getStepTimes();
-        String[] lines = {
+        String[] info = {
                 "tick " + stats.getTick() + "   agents " + stats.getAgentCount()
                         + "   rule " + stats.getRuleName(),
                 String.format("network %.1f%% of map   %.0f%% of agents on it",
@@ -98,27 +99,32 @@ public class SimulationPanel extends JPanel implements Observer {
                         times.getSpreadMillis(), renderMillis),
                 "lost deposits " + stats.getLostDeposits()
         };
-        String help = "1 follow  2 avoid  3 wander  R scatter  P parallel  Space pause";
+        String[] help = {
+                "rules       1 follow  2 avoid  3 wander  4 swirl",
+                "decorators  J jitter  D drift  M momentum",
+                "R scatter  P parallel  Space pause"
+        };
 
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                 RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g2.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
+
+        // Deposits can only be lost in the unsafe mode; red makes them stand out.
+        int warning = (stats.getLostDeposits() > 0) ? info.length - 1 : NO_WARNING;
+        drawTextBox(g2, info, 10, 20, warning);
+        drawTextBox(g2, help, 10, getHeight() - 12 - (help.length - 1) * LINE_HEIGHT, NO_WARNING);
+    }
+
+    // Draws lines of text on a dark box, like the chart's, so they stay
+    // readable over bright trail. The line at index warning is drawn in red.
+    private void drawTextBox(Graphics2D g2, String[] lines, int x, int firstBaseline, int warning) {
         FontMetrics metrics = g2.getFontMetrics();
-
-        // Dark boxes behind the text, like the chart's, keep it readable over bright trail.
-        int infoWidth = Arrays.stream(lines).mapToInt(metrics::stringWidth).max().orElse(0);
+        int width = Arrays.stream(lines).mapToInt(metrics::stringWidth).max().orElse(0);
         g2.setColor(BOX);
-        g2.fillRect(4, 5, infoWidth + 12, lines.length * LINE_HEIGHT + 6);
-        g2.fillRect(4, getHeight() - 26, metrics.stringWidth(help) + 12, 20);
-
+        g2.fillRect(x - 6, firstBaseline - 15, width + 12, lines.length * LINE_HEIGHT + 6);
         for (int i = 0; i < lines.length; i++) {
-            g2.setColor(TEXT);
-            if (i == lines.length - 1 && stats.getLostDeposits() > 0) {
-                g2.setColor(WARNING);   // deposits can only be lost in the unsafe mode
-            }
-            g2.drawString(lines[i], 10, 20 + i * LINE_HEIGHT);
+            g2.setColor(i == warning ? WARNING : TEXT);
+            g2.drawString(lines[i], x, firstBaseline + i * LINE_HEIGHT);
         }
-        g2.setColor(TEXT);
-        g2.drawString(help, 10, getHeight() - 12);
     }
 }
