@@ -3,7 +3,8 @@ package slime;
 import java.util.Random;
 
 /**
- * The concrete steering strategies, written as lambdas instead of classes.
+ * The concrete steering strategies, written as lambdas instead of classes,
+ * plus SWIRL, a ready-made stack of decorators on top of FOLLOW.
  *
  * Before this change, FollowTrail, AvoidTrail and Wander were three classes
  * that each implemented SteeringRule. Each class existed only to hold one
@@ -30,6 +31,18 @@ public final class SteeringRules {
      */
     public static final SteeringRule WANDER =
             (left, front, right, random) -> (random.nextInt(3) - 1) * Settings.TURN_ANGLE;
+
+    /**
+     * FOLLOW, decorated: it drifts twice over, then jitters. The agents
+     * circle while they follow, and the network churns like foam.
+     *
+     * Written with constructors, the stack reads inside-out: the outermost
+     * decorator, Jitter, comes first in the code, and FOLLOW, at the bottom
+     * of the stack, comes last.
+     */
+    public static final SteeringRule SWIRL =
+            new Jitter(new Drift(new Drift(FOLLOW, Settings.DRIFT_ANGLE), Settings.DRIFT_ANGLE),
+                    Settings.JITTER_ANGLE);
 
     private SteeringRules() {
         // constants only: never instantiated
