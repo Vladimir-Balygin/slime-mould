@@ -29,6 +29,11 @@ public final class Settings {
     // Fraction of the trail that fades away each tick
     public static final double DECAY_RATE = 0.1;
 
+    // Decorators for the steering rules (keys J, D and M)
+    public static final double JITTER_ANGLE = Math.toRadians(22.5);   // largest random wobble per turn
+    public static final double DRIFT_ANGLE = Math.toRadians(11.25);   // extra turn to the right every step
+    public static final double MOMENTUM_CHANCE = 0.5;                 // share of steps that go straight
+
     // Statistics: a cell with more trail than this counts as part of the network
     public static final double NETWORK_THRESHOLD = 10.0;
     public static final int CHART_LENGTH = 300;       // ticks of history in the chart

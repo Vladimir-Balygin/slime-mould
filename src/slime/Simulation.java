@@ -6,6 +6,7 @@ import java.util.DoubleSummaryStatistics;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
@@ -28,7 +29,7 @@ public class Simulation implements Subject {
     private final List<Observer> observers = new ArrayList<>();
     private final Random random;   // places and scatters the agents
     private SteeringRule rule = SteeringRules.FOLLOW;
-    private String ruleName = "follow trail";
+    private String ruleName = "follow trail";   // the plain rule under any decorators
     private ExecutionMode mode = ExecutionMode.PARALLEL;
     private int tick = 0;
     private long lostDeposits = 0;   // deposits lost since the mode last changed
@@ -138,9 +139,26 @@ public class Simulation implements Subject {
      * own, so one rule object can safely be shared by all 15,000 agents.
      *
      * The name travels with the rule because a lambda has no toString()
-     * of its own to describe itself.
+     * of its own to describe itself. If the rule is decorated, its
+     * decorators add their own parts to the name (see describe()).
      */
     public void setSteeringRule(String name, SteeringRule rule) {
+        useRule(name, rule);
+    }
+
+    /**
+     * Wraps the current rule in one more decorator.
+     *
+     * The decorator arrives as a function from rule to rule (a
+     * UnaryOperator), for example a lambda that wraps its rule in a Jitter.
+     * So this class does not need to know which decorators exist: a new one
+     * can be added without changing this method.
+     */
+    public void decorateSteeringRule(UnaryOperator<SteeringRule> decorator) {
+        useRule(ruleName, decorator.apply(rule));   // same plain rule underneath, one more layer on top
+    }
+
+    private void useRule(String name, SteeringRule rule) {
         if (rule == null) {
             throw new IllegalArgumentException("Steering rule cannot be null");
         }
@@ -207,7 +225,7 @@ public class Simulation implements Subject {
                         Collectors.counting()));
 
         double agentShare = agents.isEmpty() ? 0 : (double) onNetwork.get(true) / agents.size();
-        return new SimulationStats(tick, agents.size(), ruleName, mode,
+        return new SimulationStats(tick, agents.size(), rule.describe(ruleName), mode,
                 (double) networkCells / trail.getCellCount(), agentShare,
                 trailStats.getAverage(), trailStats.getMax(), stepTimes, lostDeposits);
     }
@@ -256,8 +274,9 @@ public class Simulation implements Subject {
         return rule;
     }
 
+    /** The rule's full description, such as "follow trail + drift + jitter". */
     public String getSteeringRuleName() {
-        return ruleName;
+        return rule.describe(ruleName);
     }
 
     public ExecutionMode getExecutionMode() {

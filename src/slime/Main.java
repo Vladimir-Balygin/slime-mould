@@ -43,7 +43,9 @@ public class Main {
         Timer timer = new Timer(Settings.FRAME_DELAY_MS, event -> simulation.step());
 
         // Keyboard controls. A number key swaps the strategy while the
-        // simulation runs; the agents themselves do not change.
+        // simulation runs; the agents themselves do not change. J, D and M
+        // wrap the current strategy in one more decorator, so they can be
+        // stacked in any order; a number key goes back to a plain rule.
         // KeyListener has three abstract methods (keyTyped, keyPressed,
         // keyReleased), so it is not a functional interface and cannot be
         // a lambda. KeyAdapter is a class with empty versions of all three,
@@ -61,6 +63,18 @@ public class Main {
                         break;
                     case '3':
                         simulation.setSteeringRule("wander", SteeringRules.WANDER);
+                        break;
+                    case '4':
+                        simulation.setSteeringRule("follow trail", SteeringRules.SWIRL);
+                        break;
+                    case 'j':
+                        simulation.decorateSteeringRule(rule -> rule.withJitter(Settings.JITTER_ANGLE));
+                        break;
+                    case 'd':
+                        simulation.decorateSteeringRule(rule -> rule.withDrift(Settings.DRIFT_ANGLE));
+                        break;
+                    case 'm':
+                        simulation.decorateSteeringRule(rule -> rule.withMomentum(Settings.MOMENTUM_CHANCE));
                         break;
                     case 'r':
                         simulation.scatter();
