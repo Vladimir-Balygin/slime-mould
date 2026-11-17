@@ -68,13 +68,13 @@ public class Main {
                         simulation.setSteeringRule("follow trail", SteeringRules.SWIRL);
                         break;
                     case 'j':
-                        simulation.decorateSteeringRule(rule -> new Jitter(rule, Settings.JITTER_ANGLE));
+                        simulation.decorateSteeringRule(rule -> rule.withJitter(Settings.JITTER_ANGLE));
                         break;
                     case 'd':
-                        simulation.decorateSteeringRule(rule -> new Drift(rule, Settings.DRIFT_ANGLE));
+                        simulation.decorateSteeringRule(rule -> rule.withDrift(Settings.DRIFT_ANGLE));
                         break;
                     case 'm':
-                        simulation.decorateSteeringRule(rule -> new Momentum(rule, Settings.MOMENTUM_CHANCE));
+                        simulation.decorateSteeringRule(rule -> rule.withMomentum(Settings.MOMENTUM_CHANCE));
                         break;
                     case 'r':
                         simulation.scatter();

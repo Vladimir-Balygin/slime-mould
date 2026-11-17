@@ -36,13 +36,13 @@ public final class SteeringRules {
      * FOLLOW, decorated: it drifts twice over, then jitters. The agents
      * circle while they follow, and the network churns like foam.
      *
-     * Written with constructors, the stack reads inside-out: the outermost
-     * decorator, Jitter, comes first in the code, and FOLLOW, at the bottom
-     * of the stack, comes last.
+     * Method chaining builds the stack in the order it is read: FOLLOW at
+     * the bottom, then each decorator wrapped around the one before.
      */
-    public static final SteeringRule SWIRL =
-            new Jitter(new Drift(new Drift(FOLLOW, Settings.DRIFT_ANGLE), Settings.DRIFT_ANGLE),
-                    Settings.JITTER_ANGLE);
+    public static final SteeringRule SWIRL = FOLLOW
+            .withDrift(Settings.DRIFT_ANGLE)
+            .withDrift(Settings.DRIFT_ANGLE)
+            .withJitter(Settings.JITTER_ANGLE);
 
     private SteeringRules() {
         // constants only: never instantiated
