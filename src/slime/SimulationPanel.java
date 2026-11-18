@@ -6,14 +6,16 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.util.Arrays;
+import java.util.Random;
 import javax.swing.JPanel;
 
 /**
  * The view: draws the current state of the simulation, scaled up, with
- * its statistics and the network chart on top.
+ * the weather, its statistics and the network chart on top.
  *
  * It is also a concrete observer: when the simulation changes, update()
  * asks Swing to repaint, so nothing else has to remember to do it.
@@ -27,12 +29,16 @@ public class SimulationPanel extends JPanel implements Observer {
     private static final Color TEXT = new Color(255, 255, 255, 200);
     private static final Color WARNING = new Color(255, 90, 90);
     private static final Color BOX = new Color(0, 0, 0, 160);
+    private static final int RAINDROPS = 500;   // raindrops drawn in a downpour
+    private static final int RAIN_FALL = 12;    // pixels a raindrop falls each tick
 
     private final Simulation simulation;   // the subject this observer pulls its data from
     private final NetworkChart chart;
     private final TrailRenderer renderer;
     private final int scale;
     private double renderMillis = 0;       // how long rendering takes, smoothed
+    private final int[] dropX = new int[RAINDROPS];   // where each raindrop starts, in pixels
+    private final int[] dropY = new int[RAINDROPS];
 
     public SimulationPanel(Simulation simulation, NetworkChart chart, int scale) {
         this.simulation = simulation;
@@ -40,6 +46,14 @@ public class SimulationPanel extends JPanel implements Observer {
         this.scale = scale;
         TrailMap trail = simulation.getTrail();
         this.renderer = new TrailRenderer(trail.getWidth(), trail.getHeight());
+
+        // The raindrops only decorate the picture, so they use a generator
+        // of their own and never touch the simulation's random numbers.
+        Random random = new Random();
+        for (int i = 0; i < RAINDROPS; i++) {
+            dropX[i] = random.nextInt(trail.getWidth() * scale);
+            dropY[i] = random.nextInt(trail.getHeight() * scale);
+        }
     }
 
     /**
@@ -75,6 +89,7 @@ public class SimulationPanel extends JPanel implements Observer {
                 RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         g2.drawImage(frame, 0, 0, trail.getWidth() * scale, trail.getHeight() * scale, null);
 
+        drawWeather(g2);
         drawInfo(g2);
         chart.draw(g2, getWidth() - CHART_WIDTH - 10, getHeight() - CHART_HEIGHT - 10,
                 CHART_WIDTH, CHART_HEIGHT);
@@ -86,6 +101,54 @@ public class SimulationPanel extends JPanel implements Observer {
         renderMillis = (renderMillis == 0) ? millis : renderMillis + (millis - renderMillis) / 10;
     }
 
+    // The weather over the trail: a patch of sunlight, and falling rain.
+    private void drawWeather(Graphics2D g2) {
+        if (!simulation.isWeatherOn()) {
+            return;
+        }
+        Weather weather = simulation.getWeather();
+        if (weather.getSunlight() > 0) {
+            drawSun(g2, weather);
+        }
+        if (weather.getRain() > 0) {
+            drawRain(g2, weather);
+        }
+    }
+
+    // A glow that fades from the centre to the edge, as the sunlight's strength does.
+    private void drawSun(Graphics2D g2, Weather weather) {
+        int width = getWidth();
+        int height = getHeight();
+        int radius = (int) Math.round(Settings.SUN_RADIUS * scale);
+        int x = (int) Math.round(weather.getSunX() * width);
+        int y = (int) Math.round(weather.getSunY() * height);
+        int alpha = (int) Math.round(weather.getSunlight() * 110);
+        Color[] colours = {new Color(255, 240, 190, alpha), new Color(255, 240, 190, 0)};
+        // The map wraps around, so near an edge the patch also shows on the opposite side.
+        for (int dx = -width; dx <= width; dx += width) {
+            for (int dy = -height; dy <= height; dy += height) {
+                g2.setPaint(new RadialGradientPaint(x + dx, y + dy, radius, new float[] {0f, 1f}, colours));
+                g2.fillOval(x + dx - radius, y + dy - radius, 2 * radius, 2 * radius);
+            }
+        }
+    }
+
+    // A blue tint, and raindrops that fall a little further each tick, slanting with the wind.
+    private void drawRain(Graphics2D g2, Weather weather) {
+        int width = getWidth();
+        int height = getHeight();
+        g2.setColor(new Color(40, 70, 140, (int) Math.round(weather.getRain() * 80)));
+        g2.fillRect(0, 0, width, height);
+        int fallen = simulation.getTick() * RAIN_FALL;
+        int drops = (int) Math.round(weather.getRain() * RAINDROPS);
+        g2.setColor(new Color(180, 205, 255, 150));
+        for (int i = 0; i < drops; i++) {
+            int x = Math.floorMod(dropX[i] - fallen / 4, width);
+            int y = Math.floorMod(dropY[i] + fallen, height);
+            g2.drawLine(x, y, x - 3, y + 10);
+        }
+    }
+
     private void drawInfo(Graphics2D g2) {
         SimulationStats stats = simulation.getStats();
         StepTimes times = stats.getStepTimes();
@@ -94,6 +157,7 @@ public class SimulationPanel extends JPanel implements Observer {
                         + "   rule " + stats.getRuleName(),
                 String.format("network %.1f%% of map   %.0f%% of agents on it",
                         stats.getNetworkFraction() * 100, stats.getAgentsOnNetworkFraction() * 100),
+                describeWeather(),
                 String.format("%s   move %.2f  deposit %.2f  spread %.2f  render %.2f ms",
                         stats.getMode().getLabel(), times.getMoveMillis(), times.getDepositMillis(),
                         times.getSpreadMillis(), renderMillis),
@@ -102,7 +166,7 @@ public class SimulationPanel extends JPanel implements Observer {
         String[] help = {
                 "rules       1 follow  2 avoid  3 wander  4 swirl",
                 "decorators  J jitter  D drift  M momentum",
-                "R scatter  P parallel  Space pause"
+                "W weather  R scatter  P parallel  Space pause"
         };
 
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
@@ -113,6 +177,14 @@ public class SimulationPanel extends JPanel implements Observer {
         int warning = (stats.getLostDeposits() > 0) ? info.length - 1 : NO_WARNING;
         drawTextBox(g2, info, 10, 20, warning);
         drawTextBox(g2, help, 10, getHeight() - 12 - (help.length - 1) * LINE_HEIGHT, NO_WARNING);
+    }
+
+    // One line about the weather.
+    private String describeWeather() {
+        if (!simulation.isWeatherOn()) {
+            return "weather off";
+        }
+        return "weather " + simulation.getWeather();
     }
 
     // Draws lines of text on a dark box, like the chart's, so they stay

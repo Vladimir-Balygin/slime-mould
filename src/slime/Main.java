@@ -6,14 +6,9 @@ import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
-/** Entry point: builds the simulation and the window, then starts the clock. */
 public class Main {
 
     public static void main(String[] args) {
-        // Swing is not thread-safe: all window work must happen on Swing's
-        // own thread, the Event Dispatch Thread. invokeLater queues it there.
-        // Main::createAndShowWindow is a method reference: a lambda that
-        // only calls an existing method.
         SwingUtilities.invokeLater(Main::createAndShowWindow);
     }
 
@@ -23,8 +18,10 @@ public class Main {
         NetworkChart chart = new NetworkChart(simulation, Settings.CHART_LENGTH);
         SimulationPanel panel = new SimulationPanel(simulation, chart, Settings.SCALE);
 
-        // Observer: the simulation calls these back after every change. It
-        // only knows them as Observers, not as a chart, a panel or a printer.
+        // Where the weather comes from: an endless forecast, from the same seed
+        Forecast forecast = new Forecast(Weather.start(Settings.SEED));
+
+        // Observer: the simulation calls these back after every change
         simulation.registerObserver(chart);
         simulation.registerObserver(panel);
         simulation.registerObserver(new ConsoleReporter(simulation, Settings.REPORT_INTERVAL));
@@ -46,6 +43,7 @@ public class Main {
         // simulation runs; the agents themselves do not change. J, D and M
         // wrap the current strategy in one more decorator, so they can be
         // stacked in any order; a number key goes back to a plain rule.
+        // W turns the weather on and off.
         // KeyListener has three abstract methods (keyTyped, keyPressed,
         // keyReleased), so it is not a functional interface and cannot be
         // a lambda. KeyAdapter is a class with empty versions of all three,
@@ -75,6 +73,13 @@ public class Main {
                         break;
                     case 'm':
                         simulation.decorateSteeringRule(rule -> rule.withMomentum(Settings.MOMENTUM_CHANCE));
+                        break;
+                    case 'w':   // each start asks the forecast for a new iterator, from its first weather
+                        if (simulation.isWeatherOn()) {
+                            simulation.stopWeather();
+                        } else {
+                            simulation.startWeather(forecast);
+                        }
                         break;
                     case 'r':
                         simulation.scatter();
