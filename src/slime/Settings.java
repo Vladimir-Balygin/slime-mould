@@ -34,6 +34,13 @@ public final class Settings {
     public static final double DRIFT_ANGLE = Math.toRadians(11.25);   // extra turn to the right every step
     public static final double MOMENTUM_CHANCE = 0.5;                 // share of steps that go straight
 
+    // Weather (key W)
+    public static final int SHORTEST_SPELL = 200;                   // ticks a sky lasts before it can change...
+    public static final double WEATHER_CHANGE_CHANCE = 1.0 / 300;   // ...and then the chance each tick that it does
+    public static final double WEATHER_EASE = 0.02;                 // share of the way to the sky's values moved each tick
+    public static final double WIND_X = 1.0 / 2000;                 // the sun crosses the map's width in 2,000 ticks...
+    public static final double WIND_Y = 1.0 / 6000;                 // ...and its height in 6,000 ticks
+
     // Statistics: a cell with more trail than this counts as part of the network
     public static final double NETWORK_THRESHOLD = 10.0;
     public static final int CHART_LENGTH = 300;       // ticks of history in the chart
