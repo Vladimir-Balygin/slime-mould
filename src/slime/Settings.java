@@ -23,7 +23,6 @@ public final class Settings {
     public static final double DEPOSIT_AMOUNT = 5.0;
 
     // Sensors saturate: any trail stronger than this reads the same.
-    // Set it to Double.MAX_VALUE to see why it is needed.
     public static final double SENSOR_LIMIT = 5.0;
 
     // Fraction of the trail that fades away each tick
@@ -40,6 +39,8 @@ public final class Settings {
     public static final double WEATHER_EASE = 0.02;                 // share of the way to the sky's values moved each tick
     public static final double WIND_X = 1.0 / 2000;                 // the sun crosses the map's width in 2,000 ticks...
     public static final double WIND_Y = 1.0 / 6000;                 // ...and its height in 6,000 ticks
+    public static final double SUN_RADIUS = 50.0;                   // radius of the patch of sunlight, in cells
+    public static final double RAIN_DECAY = 0.4;                    // extra fading in a downpour: 0.1 becomes 0.5
 
     // Statistics: a cell with more trail than this counts as part of the network
     public static final double NETWORK_THRESHOLD = 10.0;
@@ -47,8 +48,8 @@ public final class Settings {
     public static final int REPORT_INTERVAL = 100;    // ticks between console reports
 
     // Display
-    public static final int SCALE = 2;              // each cell is drawn as 2x2 pixels
-    public static final int FRAME_DELAY_MS = 33;    // about 30 frames per second
+    public static final int SCALE = 2;             
+    public static final int FRAME_DELAY_MS = 33;
 
     private Settings() {
         // constants only: never instantiated

@@ -3,6 +3,7 @@ package slime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.DoubleSummaryStatistics;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -21,6 +22,10 @@ import java.util.stream.Stream;
  *
  * The work inside each tick runs either on one thread or on parallel
  * streams, depending on the ExecutionMode.
+ *
+ * When the weather is on, the simulation takes one Weather per tick from
+ * an iterator (the Iterator pattern), and rain and sunlight change how
+ * the trail fades.
  */
 public class Simulation implements Subject {
 
@@ -34,6 +39,8 @@ public class Simulation implements Subject {
     private int tick = 0;
     private long lostDeposits = 0;   // deposits lost since the mode last changed
     private StepTimes stepTimes = StepTimes.NONE;
+    private Iterator<Weather> forecast = Collections.emptyIterator();   // empty while the weather is off
+    private Weather weather = Weather.CALM;   // the weather for the next tick
     private SimulationStats stats;
 
     public Simulation(int width, int height, int agentCount, long seed) {
@@ -58,11 +65,11 @@ public class Simulation implements Subject {
      * One tick, in three stages. Each stage finishes before the next starts:
      *   1. move:    every agent senses, turns and moves (the trail is only read)
      *   2. deposit: every agent adds trail where it now stands
-     *   3. spread:  the whole trail blurs and fades
+     *   3. spread:  the whole trail blurs and fades, faster in rain and under the sun
      *
      * Before, each agent deposited straight after it moved, so agents later
      * in the list could sense trail that earlier agents had just laid. Now
-     * every agent senses the same trail, so the order the agents are
+     * every agent seses the same trail, so the order the agents are
      * processed in no longer changes the result. That is what allows the
      * work inside a stage to be shared out between threads.
      *
@@ -70,38 +77,39 @@ public class Simulation implements Subject {
      * so the screen and the Benchmark can show how long each one takes.
      */
     public void step() {
-        // Stage 1. Each agent only reads the trail and only changes its own
-        // fields, so every agent is an independent task.
+        // Each agent only reads the trail and only changes its own
+        // fields, so every ahent is an independent task
         long move = timeNanos(() -> agentStream().forEach(agent -> agent.senseAndMove(trail)));
 
-        // Stage 2, then a check that no deposit went missing.
+        // Then a check that no deposit went missing.
         double trailBefore = trail.total();
         long deposit = timeNanos(this::depositTrail);
         countLostDeposits(trailBefore);
 
-        // Stage 3. Every row of the trail is an independent task (see TrailMap).
-        long spread = timeNanos(() -> trail.diffuseAndDecay(Settings.DECAY_RATE, mode.isParallel()));
+        // Every row of the trail is an independent task
+        long spread = timeNanos(this::spreadTrail);
 
         stepTimes = stepTimes.record(move, deposit, spread);
+        weather = nextWeather();   // the weather for the next tick
         tick++;
         changed();
     }
 
-    // Runs one stage and returns how long it took, in nanoseconds.
+    // Runs one stage and returns how long it took, in nanoseconds
     private static long timeNanos(Runnable stage) {
         long start = System.nanoTime();
         stage.run();
         return System.nanoTime() - start;
     }
 
-    // Stage 2: every agent adds trail where it now stands.
+    // every agent adds trail where it now stands
     private void depositTrail() {
         if (mode == ExecutionMode.PARALLEL_UNSAFE) {
-            // NOT thread safe, on purpose. The lambda captures the shared trail
-            // map and changes it. "+=" reads a cell, adds to it and writes it
-            // back. If two threads do that to the same cell at the same moment,
+            // not thread safe, on purpose. The lambda captures the shared trail
+            // map and changes it. "+=" reads the cell, adds to it and writes it
+            // back. If two threads do that to the same cell at the same moment
             // both read the same old value, the second write overwrites the
-            // first, and one deposit is lost.
+            // first and one deposit is lost
             agents.parallelStream()
                     .forEach(agent -> trail.deposit(agent.getX(), agent.getY(), Settings.DEPOSIT_AMOUNT));
         } else {
@@ -109,6 +117,21 @@ public class Simulation implements Subject {
             // grid, and the grids are only added together at the join.
             int[] agentsPerCell = agentStream().collect(new DepositCollector(trail));
             trail.deposit(agentsPerCell, Settings.DEPOSIT_AMOUNT);
+        }
+    }
+
+    // the trail spreads and fades. Rain makes it fade faster, and
+    // sunlight breaks it down under the patch of sun. While the weather is
+    // off, the weather is CALM: the decay rate stays at DECAY_RATE and
+    // there is no sun, so the simulation runs exactly as it did before.
+    // The sunlight is applied on this thread, after diffuseAndDecay has
+    // returned, so after every parallel row task has finished.
+    private void spreadTrail() {
+        double decayRate = Settings.DECAY_RATE + weather.getRain() * Settings.RAIN_DECAY;
+        trail.diffuseAndDecay(decayRate, mode.isParallel());
+        if (weather.getSunlight() > 0) {
+            trail.bleach(weather.getSunX() * trail.getWidth(), weather.getSunY() * trail.getHeight(),
+                    Settings.SUN_RADIUS, weather.getSunlight());
         }
     }
 
@@ -183,6 +206,37 @@ public class Simulation implements Subject {
         changed();
     }
 
+    /**
+     * Turns the weather on. From now on, each tick takes the next weather
+     * from the source.
+     *
+     * Iterator pattern: "give me your iterator". The simulation keeps the
+     * iterator and only ever calls hasNext() and next() on it, one weather
+     * per tick. It never learns how the weather is made: an endless
+     * Forecast, or just a list of weather, works the same way.
+     */
+    public void startWeather(Iterable<Weather> source) {
+        if (source == null) {
+            throw new IllegalArgumentException("Weather source cannot be null");
+        }
+        forecast = source.iterator();
+        weather = nextWeather();
+        changed();
+    }
+
+    /** Turns the weather off: no more sun or rain. */
+    public void stopWeather() {
+        forecast = Collections.emptyIterator();
+        weather = Weather.CALM;
+        changed();
+    }
+
+    // The simulation pulls the weather, one value per tick, at its own pace:
+    // external iteration. When the source has no more weather, it is calm.
+    private Weather nextWeather() {
+        return forecast.hasNext() ? forecast.next() : Weather.CALM;
+    }
+
     /** Clears the trail and scatters every agent, so the network has to form again from noise. */
     public void scatter() {
         trail.clear();
@@ -210,10 +264,10 @@ public class Simulation implements Subject {
     private SimulationStats measure() {
         double threshold = Settings.NETWORK_THRESHOLD;
 
-        // One pass gives count, sum, average, minimum and maximum together.
+        // One pass gives count, sum, average, minimum and maximum together
         DoubleSummaryStatistics trailStats = trailValues().summaryStatistics();
 
-        // How many cells are strong enough to count as part of the network?
+        // How many cells are strong enough to count as part of the network
         long networkCells = trailValues()
                 .filter(value -> value > threshold)
                 .count();
@@ -274,13 +328,23 @@ public class Simulation implements Subject {
         return rule;
     }
 
-    /** The rule's full description, such as "follow trail + drift + jitter". */
+    /** The rule's full description, such as "follow trail + drift + jitter" */
     public String getSteeringRuleName() {
         return rule.describe(ruleName);
     }
 
     public ExecutionMode getExecutionMode() {
         return mode;
+    }
+
+    /** True while the weather is on. clam is only used while it is off. */
+    public boolean isWeatherOn() {
+        return weather != Weather.CALM;
+    }
+
+    /** The weather for the next tick: CALM while the weather is off. */
+    public Weather getWeather() {
+        return weather;
     }
 
     public TrailMap getTrail() {
