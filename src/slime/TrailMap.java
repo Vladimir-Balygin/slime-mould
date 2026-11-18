@@ -62,6 +62,27 @@ public class TrailMap {
         }
     }
 
+    /**
+     * Sunlight breaks the trail down. Every cell within radius of
+     * (centreX, centreY) loses part of its trail: the share given by
+     * strength at the centre, fading to none at the edge. Like everything
+     * else on the map, the patch wraps around the edges.
+     */
+    public void bleach(double centreX, double centreY, double radius, double strength) {
+        if (strength < 0 || strength > 1) {
+            throw new IllegalArgumentException("Strength must be between 0 and 1, got " + strength);
+        }
+        int reach = (int) Math.ceil(radius);
+        for (int dy = -reach; dy <= reach; dy++) {
+            for (int dx = -reach; dx <= reach; dx++) {
+                double distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < radius) {
+                    cells[indexOf(centreX + dx, centreY + dy)] *= 1 - strength * (1 - distance / radius);
+                }
+            }
+        }
+    }
+
     /** Trail strength of one cell. */
     public double get(int x, int y) {
         return cells[y * width + x];
