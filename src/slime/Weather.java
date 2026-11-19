@@ -1,6 +1,8 @@
 package slime;
 
+import java.util.Optional;
 import java.util.Random;
+import java.util.stream.Stream;
 
 /**
  * The weather at one tick: the sky, how strong the sunlight and the rain
@@ -69,6 +71,23 @@ public class Weather {
                 wrap(sunX + Settings.WIND_X),
                 wrap(sunY + Settings.WIND_Y),
                 random.nextLong());
+    }
+
+    /**
+     * The outlook: the first change of sky within the next withinTicks
+     * ticks, or an empty Optional if the sky stays the same all that time.
+     *
+     * It runs the weather forward from this weather, on a stream of its
+     * own. Because next() is a pure function, looking ahead disturbs
+     * nothing, and the weather that really arrives is exactly the weather
+     * found here: this forecast is never wrong.
+     */
+    public Optional<Weather> nextChange(int withinTicks) {
+        return Stream.iterate(this, Weather::next)      // this weather, the next one, the one after that...
+                .skip(1)                                  // ...but not this one
+                .limit(withinTicks)                       // an infinite stream must be cut short
+                .filter(later -> later.getSky() != sky)   // only weather under a different sky
+                .findFirst();                             // stop at the first one; there may be none
     }
 
     // Moves a value a small part of the way towards its target.

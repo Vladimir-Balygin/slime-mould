@@ -179,12 +179,17 @@ public class SimulationPanel extends JPanel implements Observer {
         drawTextBox(g2, help, 10, getHeight() - 12 - (help.length - 1) * LINE_HEIGHT, NO_WARNING);
     }
 
-    // One line about the weather.
+    // One line about the weather, and when the sky will change next.
     private String describeWeather() {
         if (!simulation.isWeatherOn()) {
             return "weather off";
         }
-        return "weather " + simulation.getWeather();
+        Weather weather = simulation.getWeather();
+        // nextChange returns an Optional, because the sky may not change in time.
+        String outlook = weather.nextChange(Settings.OUTLOOK_TICKS)
+                .map(change -> change.getSky().getLabel() + " in " + (change.getTick() - weather.getTick()) + " ticks")
+                .orElse("no change for " + Settings.OUTLOOK_TICKS + " ticks");
+        return "weather " + weather + "   then " + outlook;
     }
 
     // Draws lines of text on a dark box, like the chart's, so they stay
