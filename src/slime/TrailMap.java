@@ -5,11 +5,8 @@ import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
 /**
- * The chemical trail that agents leave behind and follow.
- *
- * Stored as a flat array: cell (x, y) lives at index y * width + x.
- * The edges wrap around, so the world has no walls: an agent that
- * leaves on the right comes back on the left.
+ * The chemical trail that agents deposit and follow. Stored as a flat array,
+ * with cell (x, y) at index y * width + x. Edges wrap, so the world has no walls.
  */
 public class TrailMap {
 
@@ -37,21 +34,17 @@ public class TrailMap {
         return height;
     }
 
-    /** Trail strength at any point. Points outside the map wrap around. */
+    /** Returns the trail strength at a point; points outside the map wrap around. */
     public double sample(double x, double y) {
         return cells[indexOf(x, y)];
     }
 
-    /** Adds trail at a point. Points outside the map wrap around. */
+    /** Adds trail at a point; points outside the map wrap around. */
     public void deposit(double x, double y, double amount) {
         cells[indexOf(x, y)] += amount;
     }
 
-    /**
-     * Adds trail for a whole grid of agents at once: agentsPerCell[i]
-     * agents each add amountEach to cell i. An overload of deposit: same
-     * name, different parameters.
-     */
+    /** Adds trail for a whole grid at once: cell i gets agentsPerCell[i] * amountEach. */
     public void deposit(int[] agentsPerCell, double amountEach) {
         if (agentsPerCell.length != cells.length) {
             throw new IllegalArgumentException("Expected " + cells.length
@@ -63,10 +56,8 @@ public class TrailMap {
     }
 
     /**
-     * Sunlight breaks the trail down. Every cell within radius of
-     * (centreX, centreY) loses part of its trail: the share given by
-     * strength at the centre, fading to none at the edge. Like everything
-     * else on the map, the patch wraps around the edges.
+     * Removes trail under the sun: cells within radius lose the share given by
+     * strength at the centre, falling to none at the edge. Wraps at the edges.
      */
     public void bleach(double centreX, double centreY, double radius, double strength) {
         if (strength < 0 || strength > 1) {
@@ -83,7 +74,7 @@ public class TrailMap {
         }
     }
 
-    /** Trail strength of one cell. */
+    /** Returns the trail strength of one cell. */
     public double get(int x, int y) {
         return cells[y * width + x];
     }
@@ -98,9 +89,8 @@ public class TrailMap {
     }
 
     /**
-     * The total amount of trail on the whole map. A plain loop rather than
-     * values().sum(): the simulation calls this twice every step, and
-     * measuring showed the stream version took several times longer.
+     * Returns the total trail on the map. A plain loop, not values().sum(): it is
+     * called twice per step, and the stream version measured several times slower.
      */
     public double total() {
         double total = 0;
@@ -110,31 +100,21 @@ public class TrailMap {
         return total;
     }
 
-    /**
-     * Every cell's trail strength, as a stream. Callers can read and
-     * summarise the values but cannot change them, which handing out the
-     * array itself would allow.
-     */
+    /** Returns every cell's value as a stream, so callers can read the map but not change it. */
     public DoubleStream values() {
         return Arrays.stream(cells);
     }
 
     /**
-     * Spreads each cell's trail over its 3x3 neighbourhood, then fades
-     * it by decayRate (0.1 removes 10% per tick).
+     * Spreads each cell over its 3x3 neighbourhood, then fades it by decayRate.
      *
-     * New values are written into a separate buffer. If we wrote back
-     * into cells while still reading from it, a cell would average a
-     * mix of old neighbours and neighbours that were already updated.
-     *
-     * When parallel is true, the rows are shared out between threads.
-     * That is safe because each row task only reads from cells, which
-     * nothing changes during this stage, and only writes its own row of
-     * the buffer, so no two tasks ever write the same element. The swap
-     * happens after forEach returns, when every row task has finished.
+     * Results go to a separate buffer, so every average uses old values only. In
+     * parallel, rows are split between threads: each task reads cells, which no
+     * task changes, and writes only its own buffer row. The swap happens after
+     * forEach returns, when every row task has finished.
      */
     public void diffuseAndDecay(double decayRate, boolean parallel) {
-        double keep = 1.0 - decayRate;   // effectively final, so the lambda can use it
+        double keep = 1.0 - decayRate;
         IntStream rows = IntStream.range(0, height);
         if (parallel) {
             rows = rows.parallel();
@@ -145,7 +125,7 @@ public class TrailMap {
         buffer = old;
     }
 
-    // Each call reads from cells and writes only row y of the buffer.
+    // Blurs row y: reads from cells and writes only row y of the buffer.
     private void blurRow(int y, double keep) {
         int up = (y == 0) ? height - 1 : y - 1;
         int down = (y == height - 1) ? 0 : y + 1;
@@ -159,10 +139,7 @@ public class TrailMap {
         }
     }
 
-    /**
-     * The array index of the cell that contains a point, wrapping at the
-     * edges. Public so the DepositCollector can count agents per cell.
-     */
+    /** Returns the index of the cell containing a point (edges wrap). Public for DepositCollector. */
     public int indexOf(double x, double y) {
         int cellX = Math.floorMod((int) Math.floor(x), width);
         int cellY = Math.floorMod((int) Math.floor(y), height);

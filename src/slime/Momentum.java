@@ -3,17 +3,13 @@ package slime;
 import java.util.Random;
 
 /**
- * Concrete decorator: on some steps the agent keeps going straight without
- * asking the wrapped rule at all.
- *
- * Unlike Jitter and Drift, which always call the wrapped rule and then
- * adjust its answer, Momentum decides first whether to call it. That makes
- * the order of decorators matter: Momentum on the outside also skips any
- * decorators inside it.
+ * Concrete decorator: on some ticks the agent goes straight without asking the
+ * wrapped rule. Because it decides first, an outer Momentum also skips every
+ * decorator inside it, so decorator order matters.
  */
 public class Momentum extends RuleDecorator {
 
-    private final double chance;   // the share of steps that go straight, from 0 to 1
+    private final double chance;   // share of ticks that go straight, 0 to 1
 
     public Momentum(SteeringRule inner, double chance) {
         super(inner, "momentum");

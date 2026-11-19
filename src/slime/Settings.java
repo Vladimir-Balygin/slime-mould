@@ -1,59 +1,53 @@
 package slime;
 
 /**
- * All tunable numbers in one place, so an experiment never means
- * hunting through the code. The agent values follow Jeff Jones's
- * 2010 Physarum model.
+ * Simulation parameters. Units: cells, ticks and radians.
  */
 public final class Settings {
 
-    // World size, in trail-map cells
     public static final int WIDTH = 400;
     public static final int HEIGHT = 300;
 
-    // Population; the seed makes every run repeatable
     public static final int AGENT_COUNT = 15_000;
-    public static final long SEED = 42L;
+    public static final long SEED = 42L;   // same seed, same run (not in PARALLEL_UNSAFE)
 
-    // How an agent senses and moves
+    // Sensing and movement (Jones 2010)
     public static final double SENSOR_ANGLE = Math.toRadians(22.5);
     public static final double SENSOR_DISTANCE = 9.0;
     public static final double TURN_ANGLE = Math.toRadians(45.0);
     public static final double STEP_SIZE = 1.0;
     public static final double DEPOSIT_AMOUNT = 5.0;
 
-    // Sensors saturate: any trail stronger than this reads the same.
-    // Set it to Double.MAX_VALUE to see why it is needed.
+    // Cap on sensor readings. Without it, the network shrinks to a few thick lines.
     public static final double SENSOR_LIMIT = 5.0;
 
-    // Fraction of the trail that fades away each tick
     public static final double DECAY_RATE = 0.1;
 
-    // Decorators for the steering rules (keys J, D and M)
-    public static final double JITTER_ANGLE = Math.toRadians(22.5);   // largest random wobble per turn
-    public static final double DRIFT_ANGLE = Math.toRadians(11.25);   // extra turn to the right every step
-    public static final double MOMENTUM_CHANCE = 0.5;                 // share of steps that go straight
+    // Rule decorators (keys J, D and M)
+    public static final double JITTER_ANGLE = Math.toRadians(22.5);   // largest random extra turn, either way
+    public static final double DRIFT_ANGLE = Math.toRadians(11.25);   // extra turn to the right, every tick
+    public static final double MOMENTUM_CHANCE = 0.5;                 // chance to skip the rule and go straight
 
     // Weather (key W)
-    public static final int SHORTEST_SPELL = 200;                   // ticks a sky lasts before it can change...
-    public static final double WEATHER_CHANGE_CHANCE = 1.0 / 300;   // ...and then the chance each tick that it does
-    public static final double WEATHER_EASE = 0.02;                 // share of the way to the sky's values moved each tick
-    public static final double WIND_X = 1.0 / 2000;                 // the sun crosses the map's width in 2,000 ticks...
-    public static final double WIND_Y = 1.0 / 6000;                 // ...and its height in 6,000 ticks
-    public static final double SUN_RADIUS = 50.0;                   // radius of the patch of sunlight, in cells
-    public static final double RAIN_DECAY = 0.4;                    // extra fading in a downpour: 0.1 becomes 0.5
-    public static final int OUTLOOK_TICKS = 600;                    // how far ahead the outlook looks
+    public static final int SHORTEST_SPELL = 200;
+    public static final double WEATHER_CHANGE_CHANCE = 1.0 / 300;   // per tick, after the shortest spell
+    public static final double WEATHER_EASE = 0.02;                 // share of the way to a new sky, per tick
+    public static final double WIND_X = 1.0 / 2000;                 // sun patch speed, share of the map per tick
+    public static final double WIND_Y = 1.0 / 6000;
+    public static final double SUN_RADIUS = 50.0;
+    public static final double RAIN_DECAY = 0.4;                    // extra decay in a storm, half in showers
+    public static final int OUTLOOK_TICKS = 600;
 
-    // Statistics: a cell with more trail than this counts as part of the network
-    public static final double NETWORK_THRESHOLD = 10.0;
-    public static final int CHART_LENGTH = 300;       // ticks of history in the chart
-    public static final int REPORT_INTERVAL = 100;    // ticks between console reports
+    // Statistics
+    public static final double NETWORK_THRESHOLD = 10.0;   // cells with more trail count as network
+    public static final int CHART_LENGTH = 300;
+    public static final int REPORT_INTERVAL = 100;
 
     // Display
-    public static final int SCALE = 2;              // each cell is drawn as 2x2 pixels
-    public static final int FRAME_DELAY_MS = 33;    // about 30 frames per second
+    public static final int SCALE = 2;              // pixels per cell
+    public static final int FRAME_DELAY_MS = 33;    // about 30 ticks per second
 
     private Settings() {
-        // constants only: never instantiated
+        // no instances: constants only
     }
 }

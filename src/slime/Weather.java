@@ -5,17 +5,15 @@ import java.util.Random;
 import java.util.stream.Stream;
 
 /**
- * The weather at one tick: the sky, how strong the sunlight and the rain
- * are, and where the patch of sunlight is.
+ * The weather at one tick: the sky, the sunlight and rain strength, and the
+ * position of the sun patch.
  *
- * Immutable: next() does not change this weather, it returns a new
- * Weather for the tick after. And next() is a pure function: the same
- * weather always leads to the same next weather, because every random
- * number it needs comes from a seed stored in the weather itself.
+ * Immutable, and next() is a pure function: its random numbers come from a seed
+ * stored in the weather, so the same weather always leads to the same next one.
  */
 public class Weather {
 
-    /** No sun and no rain. The simulation uses it while the weather is off. */
+    /** No sun and no rain. Used while the weather is off. */
     public static final Weather CALM = new Weather(0, Sky.OVERCAST, 0, 0, 0, 0.5, 0.5, 0);
 
     private final int tick;          // ticks since the forecast began
@@ -23,9 +21,9 @@ public class Weather {
     private final int skySince;      // the tick when the sky last changed
     private final double sunlight;   // 0 = no sun, 1 = full sun
     private final double rain;       // 0 = dry, 1 = downpour
-    private final double sunX;       // centre of the patch of sunlight, as a share of the map's width...
-    private final double sunY;       // ...and of its height, so the weather works on a map of any size
-    private final long seed;         // the random numbers for the next weather come from this
+    private final double sunX;       // sun patch centre, as a share of the map width (fits any map size)
+    private final double sunY;       // sun patch centre, as a share of the map height
+    private final long seed;         // source of the next weather's random numbers
 
     private Weather(int tick, Sky sky, int skySince, double sunlight, double rain,
                     double sunX, double sunY, long seed) {
@@ -39,26 +37,17 @@ public class Weather {
         this.seed = seed;
     }
 
-    /**
-     * The first weather of a forecast: a clear sky, with the sun about to
-     * come out somewhere on the map. The same seed gives the same weather.
-     */
+    /** Returns the first weather for a seed: a clear sky, with the sun about to come out. */
     public static Weather start(long seed) {
         Random random = new Random(seed);
         return new Weather(0, Sky.CLEAR, 0, 0, 0, random.nextDouble(), random.nextDouble(), random.nextLong());
     }
 
     /**
-     * The weather one tick later. Once a sky has lasted SHORTEST_SPELL
-     * ticks, it may change at random. Sunlight and rain move a little
-     * towards the sky's values, so the weather changes gradually. The wind
-     * blows the patch of sunlight along, and like the agents it wraps
-     * around the edges of the map.
-     *
-     * The Random is made from this weather's own seed, and it hands the
-     * next weather a new seed. So calling next() twice on the same weather
-     * gives the same answer twice: nothing outside this object is used or
-     * changed.
+     * Returns the weather one tick later. After SHORTEST_SPELL ticks the sky may
+     * change at random, sunlight and rain ease towards the sky's values, and the
+     * sun patch moves with the wind, wrapping at the edges. Uses only this
+     * weather's seed, so calling it twice gives the same result.
      */
     public Weather next() {
         Random random = new Random(seed);
@@ -74,28 +63,24 @@ public class Weather {
     }
 
     /**
-     * The outlook: the first change of sky within the next withinTicks
-     * ticks, or an empty Optional if the sky stays the same all that time.
-     *
-     * It runs the weather forward from this weather, on a stream of its
-     * own. Because next() is a pure function, looking ahead disturbs
-     * nothing, and the weather that really arrives is exactly the weather
-     * found here: this forecast is never wrong.
+     * Returns the first change of sky within the next withinTicks ticks, or empty
+     * if there is none. next() is pure, so looking ahead changes nothing and the
+     * predicted change is exactly what happens.
      */
     public Optional<Weather> nextChange(int withinTicks) {
-        return Stream.iterate(this, Weather::next)      // this weather, the next one, the one after that...
-                .skip(1)                                  // ...but not this one
-                .limit(withinTicks)                       // an infinite stream must be cut short
-                .filter(later -> later.getSky() != sky)   // only weather under a different sky
-                .findFirst();                             // stop at the first one; there may be none
+        return Stream.iterate(this, Weather::next)
+                .skip(1)                                  // start from the next tick
+                .limit(withinTicks)                       // the stream is infinite: bound it
+                .filter(later -> later.getSky() != sky)
+                .findFirst();
     }
 
-    // Moves a value a small part of the way towards its target.
+    // Moves a value WEATHER_EASE of the way towards its target.
     private static double towards(double value, double target) {
         return value + (target - value) * Settings.WEATHER_EASE;
     }
 
-    // Keeps a share of the map between 0 and 1: what leaves one edge comes back on the other.
+    // Wraps a share of the map into [0, 1): leaving one edge re-enters on the other.
     private static double wrap(double share) {
         return share - Math.floor(share);
     }

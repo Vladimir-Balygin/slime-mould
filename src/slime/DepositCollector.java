@@ -12,26 +12,16 @@ import java.util.function.Supplier;
 import java.util.stream.Collector;
 
 /**
- * A custom collector that counts how many agents stand on each cell of the
- * trail map. The simulation then deposits all their trail in one pass.
+ * Custom collector that counts the agents on each cell of the trail map, so the
+ * simulation can deposit all trail in one pass.
  *
- * The three type parameters of {@code Collector<SlimeAgent, List<Integer>, int[]>}:
- * the stream's elements are SlimeAgents, the container each chunk fills is
- * a list of cell numbers, and the final result is an int[] grid of counts.
+ * Thread safe in a parallel stream: the supplier gives each chunk its own list,
+ * so no two threads write the same list. The combiner joins lists only after
+ * their chunks are done, and the finisher runs once at the end.
  *
- * Why it is thread safe in a parallel stream: the stream splits the agents
- * into chunks and calls the supplier once per chunk, so each thread adds to
- * its own private list. No two threads ever write the same list. The
- * combiner joins two lists only when their chunks are joined, after the
- * threads that filled them have finished, and the finisher runs once, at
- * the very end.
- *
- * The first version gave every chunk a whole grid of 120,000 counts. The
- * Benchmark showed the cost: with more cores the stream makes more chunks,
- * and the parallel deposit stage became slower than the sequential one.
- * Now each chunk only stores one number per agent, and the grid is built
- * once, in the finisher. The price is boxing: a List cannot hold plain
- * ints, so every cell number becomes an Integer object.
+ * Each chunk stores one cell number per agent instead of a full grid: Benchmark
+ * showed a grid per chunk made the parallel deposit slower than sequential. The
+ * cost is boxing every cell number into an Integer.
  */
 public class DepositCollector implements Collector<SlimeAgent, List<Integer>, int[]> {
 
@@ -44,19 +34,19 @@ public class DepositCollector implements Collector<SlimeAgent, List<Integer>, in
         this.trail = trail;
     }
 
-    /** Makes a new, empty list: one for each chunk of agents. */
+    /** Supplies a new, empty list for each chunk of agents. */
     @Override
     public Supplier<List<Integer>> supplier() {
         return ArrayList::new;
     }
 
-    /** Adds the number of the cell one agent stands on to its own chunk's list. */
+    /** Adds the cell number under one agent to its chunk's list. */
     @Override
     public BiConsumer<List<Integer>, SlimeAgent> accumulator() {
         return (cells, agent) -> cells.add(trail.indexOf(agent.getX(), agent.getY()));
     }
 
-    /** Joins two chunks: appends the right list to the left one and keeps the left. */
+    /** Joins two chunks by appending the right list to the left one. */
     @Override
     public BinaryOperator<List<Integer>> combiner() {
         return (left, right) -> {
@@ -65,7 +55,7 @@ public class DepositCollector implements Collector<SlimeAgent, List<Integer>, in
         };
     }
 
-    /** Runs once, after every join: counts the cell numbers into a grid. */
+    /** Counts the cell numbers into a grid, once, after all joins. */
     @Override
     public Function<List<Integer>, int[]> finisher() {
         return cells -> {
@@ -78,15 +68,9 @@ public class DepositCollector implements Collector<SlimeAgent, List<Integer>, in
     }
 
     /**
-     * UNORDERED: the order agents are counted in cannot change the counts.
-     *
-     * Not IDENTITY_FINISH, because the finisher does real work: it turns
-     * the list into a grid.
-     *
-     * Deliberately not CONCURRENT. A concurrent collector tells the stream
-     * that all threads may share one container, and an ArrayList is not
-     * safe to share: two threads adding at the same moment can overwrite
-     * each other.
+     * UNORDERED: counting order cannot change the counts. Not IDENTITY_FINISH:
+     * the finisher builds the grid. Not CONCURRENT: an ArrayList must not be
+     * shared between threads.
      */
     @Override
     public Set<Characteristics> characteristics() {

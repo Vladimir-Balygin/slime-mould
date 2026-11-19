@@ -6,9 +6,11 @@ import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
+/** Entry point: builds the simulation and the window, then starts the clock. */
 public class Main {
 
     public static void main(String[] args) {
+        // Swing is not thread-safe, so the window is built on the Event Dispatch Thread.
         SwingUtilities.invokeLater(Main::createAndShowWindow);
     }
 
@@ -18,36 +20,23 @@ public class Main {
         NetworkChart chart = new NetworkChart(simulation, Settings.CHART_LENGTH);
         SimulationPanel panel = new SimulationPanel(simulation, chart, Settings.SCALE);
 
-        // Where the weather comes from: an endless forecast, from the same seed
+        // Endless forecast from the same seed, so the weather repeats from run to run.
         Forecast forecast = new Forecast(Weather.start(Settings.SEED));
 
-        // Observer: the simulation calls these back after every change
+        // Observer pattern: the simulation notifies these after every change, through the interface only.
         simulation.registerObserver(chart);
         simulation.registerObserver(panel);
         simulation.registerObserver(new ConsoleReporter(simulation, Settings.REPORT_INTERVAL));
 
-        // The Swing Timer fires on the Event Dispatch Thread, so step() and
-        // painting take turns and never run at the same time. The Timer is
-        // itself a subject: it notifies its ActionListener every 33 ms.
-        // It only advances the simulation; the panel repaints because it
-        // is an observer, not because the Timer tells it to.
-        //
-        // Threading versus parallelisation: the Event Dispatch Thread keeps
-        // the window responsive by taking turns between key presses, ticks
-        // and painting. Inside step(), parallel streams split one tick's
-        // work across the cores. step() returns only when every parallel
-        // task has finished, so painting never sees a half-finished tick.
+        // The Timer fires on the Event Dispatch Thread, so ticks, key presses and painting
+        // never overlap. It only steps the simulation; the panel repaints as an observer.
+        // Parallel streams inside step() finish before it returns, so painting never sees
+        // a half-finished tick.
         Timer timer = new Timer(Settings.FRAME_DELAY_MS, event -> simulation.step());
 
-        // Keyboard controls. A number key swaps the strategy while the
-        // simulation runs; the agents themselves do not change. J, D and M
-        // wrap the current strategy in one more decorator, so they can be
-        // stacked in any order; a number key goes back to a plain rule.
-        // W turns the weather on and off.
-        // KeyListener has three abstract methods (keyTyped, keyPressed,
-        // keyReleased), so it is not a functional interface and cannot be
-        // a lambda. KeyAdapter is a class with empty versions of all three,
-        // so an anonymous inner class overrides only the one it needs.
+        // Keys 1-4 swap the strategy at runtime; J, D and M stack decorators on it; W toggles weather.
+        // KeyListener has three abstract methods, so it cannot be a lambda: an anonymous
+        // KeyAdapter overrides only keyTyped.
         panel.setFocusable(true);
         panel.addKeyListener(new KeyAdapter() {
             @Override
@@ -74,7 +63,7 @@ public class Main {
                     case 'm':
                         simulation.decorateSteeringRule(rule -> rule.withMomentum(Settings.MOMENTUM_CHANCE));
                         break;
-                    case 'w':   // each start asks the forecast for a new iterator, from its first weather
+                    case 'w':   // each start takes a new iterator, from the first weather
                         if (simulation.isWeatherOn()) {
                             simulation.stopWeather();
                         } else {
@@ -84,7 +73,7 @@ public class Main {
                     case 'r':
                         simulation.scatter();
                         break;
-                    case 'p':   // sequential -> parallel -> parallel, unsafe deposit -> ...
+                    case 'p':   // SEQUENTIAL -> PARALLEL -> PARALLEL_UNSAFE -> ...
                         simulation.setExecutionMode(simulation.getExecutionMode().next());
                         break;
                     case ' ':
@@ -95,7 +84,7 @@ public class Main {
                         }
                         break;
                     default:
-                        break;   // any other key does nothing
+                        break;
                 }
             }
         });
