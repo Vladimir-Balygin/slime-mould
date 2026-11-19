@@ -7,16 +7,13 @@ import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
 
 /**
- * Times the simulation in each execution mode, without opening a window:
+ * Times the simulation in each execution mode, without a window:
  *
  *     java -cp out slime.Benchmark
  *
- * Measure first, optimise second. Timing Java code is noisy: the JIT
- * compiler keeps optimising the code while it runs, and the garbage
- * collector can pause the program at any moment. So this benchmark
- *   - warms every mode up before timing anything,
- *   - times several runs of each mode and reports the average and the range,
- *   - takes turns between the modes, so a slow moment cannot land on one mode only.
+ * JIT compilation and garbage collection make single timings noisy, so every
+ * mode is warmed up first, timed over several runs (average and range), and the
+ * modes take turns so a slow moment cannot hit only one of them.
  */
 public final class Benchmark {
 
@@ -24,18 +21,15 @@ public final class Benchmark {
     private static final int RUNS = 5;
     private static final int STEPS_PER_RUN = 200;
 
-    /**
-     * Everything measured for one mode. A static nested class, because it
-     * only makes sense inside the benchmark.
-     */
+    /** Measurements for one mode. */
     private static class Results {
         final Simulation simulation;
         final double[] stepMillis = new double[RUNS];     // one average per run
         final double[] renderMillis = new double[RUNS];
-        double moveMillis;      // the stage times, added up over the runs
+        double moveMillis;      // stage times, summed over the runs
         double depositMillis;
         double spreadMillis;
-        long lostBefore;        // lost deposits already counted during the warm-up
+        long lostBefore;        // lost deposits counted during the warm-up
 
         Results(Simulation simulation) {
             this.simulation = simulation;
@@ -47,9 +41,8 @@ public final class Benchmark {
     }
 
     public static void main(String[] args) {
-        // availableProcessors() counts logical processors, not physical cores.
-        // With Hyper-Threading, each physical core runs two hardware threads and
-        // is counted twice, but those two threads share the one core's circuits.
+        // availableProcessors() counts logical processors: with Hyper-Threading, each
+        // physical core counts twice, but its two hardware threads share one core.
         System.out.printf("Java sees %d logical processors (with Hyper-Threading, each physical core counts as two)%n",
                 Runtime.getRuntime().availableProcessors());
         System.out.printf("Parallel streams use the calling thread plus the fork/join common pool's %d worker thread(s)%n",
@@ -72,7 +65,7 @@ public final class Benchmark {
             results.put(mode, result);
         }
 
-        // The timed runs, taking turns between the modes.
+        // Timed runs, alternating between the modes.
         for (int run = 0; run < RUNS; run++) {
             for (ExecutionMode mode : ExecutionMode.values()) {
                 Results result = results.get(mode);
@@ -91,6 +84,7 @@ public final class Benchmark {
         printTable(results);
     }
 
+    // Prints one row per mode, then a legend for the columns.
     private static void printTable(Map<ExecutionMode, Results> results) {
         double sequential = Arrays.stream(results.get(ExecutionMode.SEQUENTIAL).stepMillis)
                 .average()
@@ -115,7 +109,7 @@ public final class Benchmark {
                 + "lost/step: deposits that threads overwrote, out of %,d per step%n", Settings.AGENT_COUNT);
     }
 
-    // Runs the work many times and returns the average time of one call, in milliseconds.
+    // Returns the average milliseconds per call, over the given number of calls.
     private static double millisPerCall(int calls, Runnable work) {
         long start = System.nanoTime();
         for (int i = 0; i < calls; i++) {

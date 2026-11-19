@@ -4,9 +4,8 @@ import java.awt.image.BufferedImage;
 import java.util.stream.DoubleStream;
 
 /**
- * Turns trail strength into colour: near-black where there is no trail,
- * through amber, to pale yellow where it is strongest (real slime
- * mould is bright yellow).
+ * Converts trail strength to colour: near-black for none, through amber, to
+ * pale yellow for the strongest (real slime mould is bright yellow).
  */
 public class TrailRenderer {
 
@@ -14,8 +13,7 @@ public class TrailRenderer {
     private static final int AMBER = 0xC77B12;
     private static final int GLOW = 0xFFF2A0;
 
-    // The trail strength that is drawn at half brightness
-    private static final double HALF_BRIGHTNESS = 20.0;
+    private static final double HALF_BRIGHTNESS = 20.0;   // trail strength drawn at half brightness
 
     private final BufferedImage image;
 
@@ -24,14 +22,9 @@ public class TrailRenderer {
     }
 
     /**
-     * Paints the whole trail map into the image and returns it.
-     *
-     * A pipeline: every cell's trail value flows in, is mapped to a colour,
-     * and the colours are collected into an array of pixels. Each pixel
-     * depends only on its own cell, and colourOf changes nothing outside
-     * itself, so in parallel the cells can be coloured on many threads at
-     * once. toArray() puts the pixels back in their original order when
-     * the chunks are joined.
+     * Paints the trail map into the image and returns it. Each pixel depends only
+     * on its own cell, so colours can be computed in parallel; toArray() keeps
+     * the pixels in their original order.
      */
     public BufferedImage render(TrailMap trail, boolean parallel) {
         int width = image.getWidth();
@@ -42,14 +35,12 @@ public class TrailRenderer {
         DoubleStream values = parallel ? trail.values().parallel() : trail.values();
         int[] pixels = values.mapToInt(TrailRenderer::colourOf).toArray();
 
-        // Copies all the pixels into the image in one block, on the calling
-        // thread. The Benchmark showed that image.setRGB, which converts the
-        // pixels one at a time, took longer than working out every colour.
+        // One block copy: Benchmark showed per-pixel setRGB took longer than the colour work itself.
         image.getRaster().setDataElements(0, 0, width, height, pixels);
         return image;
     }
 
-    // Trail strength to colour. Same value in, same colour out, nothing else changed.
+    // Trail strength to colour. No side effects, so it is safe on many threads at once.
     private static int colourOf(double value) {
         double brightness = value / (value + HALF_BRIGHTNESS);   // always between 0 and 1
         if (brightness < 0.5) {
